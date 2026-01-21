@@ -1,602 +1,360 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, createContext, useContext } = React;
+const { ShoppingCart, Menu, X, ChevronLeft, ChevronRight, Plus, Minus, Check } = lucide;
 
-// Get Lucide icons
-const ShoppingCart = () => React.createElement('i', { 'data-lucide': 'shopping-cart' });
-const Menu = () => React.createElement('i', { 'data-lucide': 'menu' });
-const X = () => React.createElement('i', { 'data-lucide': 'x' });
-const ChevronLeft = () => React.createElement('i', { 'data-lucide': 'chevron-left' });
-const ChevronRight = () => React.createElement('i', { 'data-lucide': 'chevron-right' });
-const Minus = () => React.createElement('i', { 'data-lucide': 'minus' });
-const Plus = () => React.createElement('i', { 'data-lucide': 'plus' });
-const Upload = () => React.createElement('i', { 'data-lucide': 'upload' });
+const AppContext = createContext();
+const useAppContext = () => useContext(AppContext);
 
-// Initialize Lucide icons after component renders
-const useLucide = () => {
-  useEffect(() => {
-    if (window.lucide) {
-      window.lucide.createIcons();
-    }
-  });
-};
+const AppProvider = ({ children }) => {
+    const [products, setProducts] = useState([]);
+    const [cart, setCart] = useState([]);
+    const [currentPage, setCurrentPage] = useState('home');
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [checkoutStep, setCheckoutStep] = useState(1);
+    const [loading, setLoading] = useState(true);
 
-// PRODUCT DATA
-const defaultProducts = [
-  {
-    id: 1,
-    name: "Banarasi Silk Wedding Sari - Royal Red",
-    originalPrice: 8999,
-    discountedPrice: 6499,
-    images: [
-      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80"
-    ],
-    tags: ["Banarasi", "Silk", "Wedding"],
-    description: "Exquisite handwoven Banarasi silk sari in royal red with intricate gold zari work. Perfect for weddings and grand celebrations. Features traditional Mughal-inspired motifs and a rich pallu design."
-  },
-  {
-    id: 2,
-    name: "Cotton Handloom Sari - Ocean Blue",
-    originalPrice: 3999,
-    discountedPrice: 2799,
-    images: [
-      "https://images.unsplash.com/photo-1583391733956-6c78276477e5?w=400&h=600&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1583391733956-6c78276477e5?w=400&h=600&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1583391733956-6c78276477e5?w=400&h=600&fit=crop&q=80"
-    ],
-    tags: ["Cotton", "Handloom", "Casual"],
-    description: "Soft and breathable pure cotton handloom sari in ocean blue. Ideal for daily wear and office settings. Features elegant border work and comfortable drape."
-  },
-  {
-    id: 3,
-    name: "Kanjivaram Silk Temple Sari - Green",
-    originalPrice: 12999,
-    discountedPrice: 9999,
-    images: [
-      "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=400&h=600&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=400&h=600&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=400&h=600&fit=crop&q=80"
-    ],
-    tags: ["Kanjivaram", "Silk", "Traditional"],
-    description: "Authentic Kanjivaram silk sari with temple border design in rich emerald green. Handcrafted by master weavers with pure gold zari. A timeless piece for special occasions."
-  }
-];
+    useEffect(() => {
+        const loadProducts = async () => {
+            try {
+                const response = await fetch('products.csv');
+                const csvText = await response.text();
+                const parsed = parseCSV(csvText);
+                setProducts(parsed);
+                setLoading(false);
+            } catch (error) {
+                console.error('Error loading products:', error);
+                setLoading(false);
+            }
+        };
+        loadProducts();
+        const savedCart = localStorage.getItem('cart');
+        if (savedCart) setCart(JSON.parse(savedCart));
+    }, []);
 
-const SariEcommerce = () => {
-  useLucide();
-  
-  const [currentPage, setCurrentPage] = useState('home');
-  const [pageNumber, setPageNumber] = useState(1);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [cart, setCart] = useState([]);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [checkoutStep, setCheckoutStep] = useState(1);
-  const [orderComplete, setOrderComplete] = useState(false);
-  const [uploadedProducts, setUploadedProducts] = useState(null);
-  const [showUploadInfo, setShowUploadInfo] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    address: '',
-    phone: '',
-    email: ''
-  });
+    useEffect(() => {
+        if (cart.length > 0) localStorage.setItem('cart', JSON.stringify(cart));
+    }, [cart]);
 
-  const ADMIN_MODE = true;
-
-  const generateMockProducts = () => {
-    const baseProducts = uploadedProducts || defaultProducts;
-    
-    if (baseProducts.length >= 156) {
-      return baseProducts.slice(0, 156);
-    }
-    
-    const sariTypes = ['Silk', 'Cotton', 'Georgette', 'Chiffon', 'Banarasi', 'Kanjivaram', 'Tussar', 'Chanderi'];
-    const colors = ['Crimson', 'Sapphire', 'Emerald', 'Gold', 'Rose', 'Ivory', 'Burgundy', 'Teal', 'Mauve', 'Coral'];
-    const patterns = ['Floral', 'Paisley', 'Zari', 'Embroidered', 'Printed', 'Woven', 'Bandhani'];
-    
-    const mockProducts = Array.from({ length: 156 - baseProducts.length }, (_, i) => {
-      const index = i + baseProducts.length;
-      const originalPrice = Math.floor(Math.random() * 15000) + 3000;
-      const discount = [10, 15, 20, 25, 30][Math.floor(Math.random() * 5)];
-      const discountedPrice = Math.floor(originalPrice * (1 - discount / 100));
-      
-      return {
-        id: index + 1,
-        name: `${sariTypes[index % sariTypes.length]} ${colors[index % colors.length]} ${patterns[index % patterns.length]} Sari`,
-        originalPrice,
-        discountedPrice,
-        images: [
-          `https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80`,
-          `https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80`,
-          `https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80`
-        ],
-        tags: [sariTypes[index % sariTypes.length], colors[index % colors.length], patterns[index % patterns.length]],
-        description: `Exquisite ${sariTypes[index % sariTypes.length]} sari in stunning ${colors[index % colors.length]} with intricate ${patterns[index % patterns.length]} work. Perfect for weddings, festivals, and special occasions.`
-      };
-    });
-    
-    return [...baseProducts, ...mockProducts];
-  };
-
-  const allProducts = generateMockProducts();
-
-  const productsPerPage = 12;
-  const totalPages = Math.ceil(allProducts.length / productsPerPage);
-  const startIdx = (pageNumber - 1) * productsPerPage;
-  const currentProducts = allProducts.slice(startIdx, startIdx + productsPerPage);
-
-  const addToCart = (product, quantity = 1) => {
-    setCart(prevCart => {
-      const existing = prevCart.find(item => item.id === product.id);
-      if (existing) {
-        return prevCart.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...prevCart, { ...product, quantity }];
-    });
-  };
-
-  const removeFromCart = (productId) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== productId));
-  };
-
-  const updateQuantity = (productId, newQuantity) => {
-    if (newQuantity === 0) {
-      removeFromCart(productId);
-    } else {
-      setCart(prevCart =>
-        prevCart.map(item =>
-          item.id === productId ? { ...item, quantity: newQuantity } : item
-        )
-      );
-    }
-  };
-
-  const getRandomProducts = (excludeId, count = 12) => {
-    const filtered = allProducts.filter(p => p.id !== excludeId);
-    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
-  };
-
-  const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
-  const getTotalPrice = () => cart.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
-
-  const calculateDiscount = (original, discounted) => {
-    return Math.round(((original - discounted) / original) * 100);
-  };
-
-  const handleCSVUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const text = await file.text();
-    const lines = text.split('\n').filter(line => line.trim());
-    const dataLines = lines.slice(1);
-    
-    const parsedProducts = dataLines.map((line, index) => {
-      const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g;
-      const fields = [];
-      let match;
-      
-      while ((match = regex.exec(line)) !== null) {
-        fields.push(match[1].replace(/^"|"$/g, '').replace(/""/g, '"'));
-      }
-      
-      const [id, name, originalPrice, discountedPrice, images, tags, description] = fields;
-      const imageUrls = images ? images.split('|').map(url => url.trim()) : ["https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80"];
-      const tagList = tags ? tags.split('|').map(tag => tag.trim()) : [];
-      
-      return {
-        id: parseInt(id) || index + 1,
-        name: name || `Product ${index + 1}`,
-        originalPrice: parseFloat(originalPrice) || 0,
-        discountedPrice: parseFloat(discountedPrice) || parseFloat(originalPrice) || 0,
-        images: imageUrls.length >= 3 ? imageUrls.slice(0, 3) : [...imageUrls, ...Array(3 - imageUrls.length).fill(imageUrls[0] || "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop&q=80")],
-        tags: tagList,
-        description: description || 'No description available.'
-      };
-    });
-    
-    setUploadedProducts(parsedProducts);
-    setPageNumber(1);
-    alert(`Successfully uploaded ${parsedProducts.length} products!`);
-    event.target.value = '';
-  };
-
-  const handleCheckout = () => {
-    setCurrentPage('checkout');
-    setCheckoutStep(1);
-  };
-
-  const handleOrderSubmit = () => {
-    setOrderComplete(true);
-    setCart([]);
-  };
-
-  const Header = () => (
-    React.createElement('header', { className: "sticky top-0 z-50 bg-white shadow-md" },
-      React.createElement('div', { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" },
-        React.createElement('div', { className: "flex justify-between items-center h-16" },
-          React.createElement('h1', { 
-            className: "text-2xl font-serif text-rose-900 cursor-pointer",
-            onClick: () => { setCurrentPage('home'); setPageNumber(1); }
-          }, "Suvarna Sarees"),
-
-          React.createElement('nav', { className: "hidden md:flex space-x-8" },
-            React.createElement('button', { onClick: () => setCurrentPage('home'), className: "text-gray-700 hover:text-rose-900" }, "Home"),
-            React.createElement('button', { onClick: () => setCurrentPage('faq'), className: "text-gray-700 hover:text-rose-900" }, "FAQ"),
-            React.createElement('button', { onClick: () => setCurrentPage('about'), className: "text-gray-700 hover:text-rose-900" }, "About"),
-            React.createElement('button', { onClick: () => setCurrentPage('contact'), className: "text-gray-700 hover:text-rose-900" }, "Contact"),
-            React.createElement('button', { onClick: () => setCurrentPage('policy'), className: "text-gray-700 hover:text-rose-900" }, "Policy")
-          ),
-
-          React.createElement('div', { className: "flex items-center space-x-4" },
-            ADMIN_MODE && React.createElement('button', {
-              onClick: () => setShowUploadInfo(!showUploadInfo),
-              className: "hidden md:flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-900 rounded-lg hover:bg-rose-200 transition"
-            },
-              React.createElement(Upload),
-              React.createElement('span', { className: "text-sm" }, "Upload CSV")
-            ),
-            React.createElement('button', { 
-              onClick: () => setCurrentPage('cart'),
-              className: "relative text-gray-700 hover:text-rose-900"
-            },
-              React.createElement(ShoppingCart),
-              getTotalItems() > 0 && React.createElement('span', { 
-                className: "absolute -top-2 -right-2 bg-rose-900 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
-              }, getTotalItems())
-            ),
-            React.createElement('button', { 
-              onClick: () => setMobileMenuOpen(!mobileMenuOpen),
-              className: "md:hidden text-gray-700"
-            }, mobileMenuOpen ? React.createElement(X) : React.createElement(Menu))
-          )
-        ),
-
-        ADMIN_MODE && showUploadInfo && React.createElement('div', { className: "bg-rose-50 p-4 mb-4 rounded-lg border-2 border-rose-200" },
-          React.createElement('h3', { className: "font-semibold text-rose-900 mb-2" }, "Upload Your Products CSV"),
-          React.createElement('p', { className: "text-sm text-gray-700 mb-3" }, "Create a CSV file with these columns: id, name, originalPrice, discountedPrice, images, tags, description"),
-          React.createElement('div', { className: "text-xs text-gray-600 mb-3 space-y-1" },
-            React.createElement('p', null, React.createElement('strong', null, "images:"), " Separate multiple URLs with | (pipe). Example: url1.jpg|url2.jpg|url3.jpg"),
-            React.createElement('p', null, React.createElement('strong', null, "tags:"), " Separate tags with | (pipe). Example: Silk|Wedding|Premium")
-          ),
-          React.createElement('input', { type: "file", accept: ".csv", onChange: handleCSVUpload, className: "text-sm" })
-        ),
-
-        mobileMenuOpen && React.createElement('nav', { className: "md:hidden pb-4 space-y-2" },
-          React.createElement('button', { onClick: () => { setCurrentPage('home'); setMobileMenuOpen(false); }, className: "block w-full text-left px-4 py-2 text-gray-700 hover:bg-rose-50" }, "Home"),
-          React.createElement('button', { onClick: () => { setCurrentPage('faq'); setMobileMenuOpen(false); }, className: "block w-full text-left px-4 py-2 text-gray-700 hover:bg-rose-50" }, "FAQ"),
-          React.createElement('button', { onClick: () => { setCurrentPage('about'); setMobileMenuOpen(false); }, className: "block w-full text-left px-4 py-2 text-gray-700 hover:bg-rose-50" }, "About"),
-          React.createElement('button', { onClick: () => { setCurrentPage('contact'); setMobileMenuOpen(false); }, className: "block w-full text-left px-4 py-2 text-gray-700 hover:bg-rose-50" }, "Contact"),
-          React.createElement('button', { onClick: () => { setCurrentPage('policy'); setMobileMenuOpen(false); }, className: "block w-full text-left px-4 py-2 text-gray-700 hover:bg-rose-50" }, "Policy")
-        )
-      )
-    )
-  );
-
-  const Footer = () => (
-    React.createElement('footer', { className: "bg-rose-900 text-white mt-16" },
-      React.createElement('div', { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12" },
-        React.createElement('div', { className: "text-center mb-8" },
-          React.createElement('h3', { className: "text-2xl font-serif mb-2" }, "Suvarna Sarees"),
-          React.createElement('p', { className: "text-rose-200" }, "Celebrating the timeless elegance of traditional Indian sarees.")
-        ),
-        React.createElement('div', { className: "border-t border-rose-800 pt-8 text-center text-rose-200" },
-          React.createElement('p', null, "© 2026 Suvarna Sarees. All rights reserved.")
-        )
-      )
-    )
-  );
-
-  const ProductCard = ({ product }) => {
-    const discountPercent = calculateDiscount(product.originalPrice, product.discountedPrice);
-    
-    return React.createElement('div', { 
-      onClick: () => { setSelectedProduct(product); setCurrentPage('product'); },
-      className: "bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition hover:scale-105 hover:shadow-xl"
-    },
-      React.createElement('div', { className: "aspect-[2/3] overflow-hidden bg-gray-100 relative" },
-        React.createElement('img', { src: product.images[0], alt: product.name, className: "w-full h-full object-cover" }),
-        discountPercent > 0 && React.createElement('div', { className: "absolute top-2 right-2 bg-rose-600 text-white px-2 py-1 rounded-md text-sm font-semibold" }, `${discountPercent}% OFF`)
-      ),
-      React.createElement('div', { className: "p-4" },
-        React.createElement('h3', { className: "font-medium text-gray-900 mb-2 line-clamp-2" }, product.name),
-        React.createElement('div', { className: "flex items-center gap-2" },
-          React.createElement('p', { className: "text-xl font-semibold text-rose-900" }, `₹${product.discountedPrice.toLocaleString()}`),
-          product.originalPrice !== product.discountedPrice && React.createElement('p', { className: "text-sm text-gray-500 line-through" }, `₹${product.originalPrice.toLocaleString()}`)
-        )
-      )
-    );
-  };
-
-  const HomePage = () => (
-    React.createElement('div', { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" },
-      React.createElement('h2', { className: "text-3xl font-serif text-rose-900 mb-8" }, "Our Collection"),
-      React.createElement('div', { className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 mb-8" },
-        currentProducts.map(product => React.createElement(ProductCard, { key: product.id, product }))
-      ),
-      React.createElement('div', { className: "flex justify-center items-center space-x-4" },
-        React.createElement('button', {
-          onClick: () => setPageNumber(Math.max(1, pageNumber - 1)),
-          disabled: pageNumber === 1,
-          className: "p-2 rounded-lg bg-rose-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed"
-        }, React.createElement(ChevronLeft)),
-        React.createElement('div', { className: "flex space-x-2" },
-          Array.from({ length: totalPages }, (_, i) => i + 1).map(page =>
-            React.createElement('button', {
-              key: page,
-              onClick: () => setPageNumber(page),
-              className: `px-4 py-2 rounded-lg ${page === pageNumber ? 'bg-rose-900 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-            }, page)
-          )
-        ),
-        React.createElement('button', {
-          onClick: () => setPageNumber(Math.min(totalPages, pageNumber + 1)),
-          disabled: pageNumber === totalPages,
-          className: "p-2 rounded-lg bg-rose-900 text-white disabled:bg-gray-300 disabled:cursor-not-allowed"
-        }, React.createElement(ChevronRight))
-      )
-    )
-  );
-
-  const ProductDetailPage = () => {
-    const [quantity, setQuantity] = useState(1);
-    const [selectedImage, setSelectedImage] = useState(0);
-    const recommendedProducts = getRandomProducts(selectedProduct.id);
-    const discountPercent = calculateDiscount(selectedProduct.originalPrice, selectedProduct.discountedPrice);
-
-    return React.createElement('div', { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" },
-      React.createElement('div', { className: "grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16" },
-        React.createElement('div', { className: "space-y-4" },
-          React.createElement('div', { className: "aspect-[2/3] overflow-hidden rounded-lg bg-gray-100 relative" },
-            React.createElement('img', { src: selectedProduct.images[selectedImage], alt: selectedProduct.name, className: "w-full h-full object-cover" }),
-            discountPercent > 0 && React.createElement('div', { className: "absolute top-4 right-4 bg-rose-600 text-white px-4 py-2 rounded-lg text-lg font-bold shadow-lg" }, `${discountPercent}% OFF`)
-          ),
-          React.createElement('div', { className: "grid grid-cols-3 gap-4" },
-            selectedProduct.images.map((img, idx) =>
-              React.createElement('div', {
-                key: idx,
-                onClick: () => setSelectedImage(idx),
-                className: `aspect-[2/3] overflow-hidden rounded-lg cursor-pointer border-2 ${selectedImage === idx ? 'border-rose-900' : 'border-transparent'}`
-              }, React.createElement('img', { src: img, alt: "", className: "w-full h-full object-cover" }))
-            )
-          )
-        ),
-        React.createElement('div', { className: "space-y-6" },
-          React.createElement('h1', { className: "text-3xl font-serif text-gray-900" }, selectedProduct.name),
-          React.createElement('div', { className: "flex items-center gap-3" },
-            React.createElement('p', { className: "text-3xl font-semibold text-rose-900" }, `₹${selectedProduct.discountedPrice.toLocaleString()}`),
-            selectedProduct.originalPrice !== selectedProduct.discountedPrice && React.createElement(React.Fragment, null,
-              React.createElement('p', { className: "text-xl text-gray-500 line-through" }, `₹${selectedProduct.originalPrice.toLocaleString()}`),
-              React.createElement('span', { className: "bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold" }, `Save ${discountPercent}%`)
-            )
-          ),
-          React.createElement('div', { className: "flex flex-wrap gap-2" },
-            selectedProduct.tags.map(tag => React.createElement('span', { key: tag, className: "px-3 py-1 bg-rose-100 text-rose-900 rounded-full text-sm" }, tag))
-          ),
-          React.createElement('div', { className: "space-y-2" },
-            React.createElement('label', { className: "block text-sm font-medium text-gray-700" }, "Quantity"),
-            React.createElement('select', {
-              value: quantity,
-              onChange: (e) => setQuantity(Number(e.target.value)),
-              className: "w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-900 focus:border-transparent"
-            }, [1, 2, 3, 4, 5].map(num => React.createElement('option', { key: num, value: num }, num)))
-          ),
-          React.createElement('button', {
-            onClick: () => { addToCart(selectedProduct, quantity); alert('Added to cart!'); },
-            className: "w-full bg-rose-900 text-white py-3 rounded-lg font-semibold hover:bg-rose-800 transition"
-          }, "Add to Cart"),
-          React.createElement('div', { className: "border-t pt-6" },
-            React.createElement('h3', { className: "font-semibold text-lg mb-3" }, "Description"),
-            React.createElement('p', { className: "text-gray-600 leading-relaxed" }, selectedProduct.description)
-          )
-        )
-      ),
-      React.createElement('div', { className: "border-t pt-12" },
-        React.createElement('h2', { className: "text-2xl font-serif text-rose-900 mb-8" }, "You Might Also Like"),
-        React.createElement('div', { className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6" },
-          recommendedProducts.map(product => React.createElement(ProductCard, { key: product.id, product }))
-        )
-      )
-    );
-  };
-
-  const CartPage = () => (
-    React.createElement('div', { className: "max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" },
-      React.createElement('h2', { className: "text-3xl font-serif text-rose-900 mb-8" }, "Shopping Cart"),
-      cart.length === 0 ? React.createElement('div', { className: "text-center py-16" },
-        React.createElement('p', { className: "text-gray-500 mb-4" }, "Your cart is empty"),
-        React.createElement('button', { onClick: () => setCurrentPage('home'), className: "text-rose-900 hover:underline" }, "Continue Shopping")
-      ) : React.createElement(React.Fragment, null,
-        React.createElement('div', { className: "space-y-4 mb-8" },
-          cart.map(item =>
-            React.createElement('div', { key: item.id, className: "flex gap-4 bg-white p-4 rounded-lg shadow" },
-              React.createElement('img', { src: item.images[0], alt: item.name, className: "w-24 h-36 object-cover rounded" }),
-              React.createElement('div', { className: "flex-1" },
-                React.createElement('h3', { className: "font-medium text-gray-900" }, item.name),
-                React.createElement('div', { className: "flex items-center gap-2" },
-                  React.createElement('p', { className: "text-rose-900 font-semibold" }, `₹${item.discountedPrice.toLocaleString()}`),
-                  item.originalPrice !== item.discountedPrice && React.createElement('p', { className: "text-sm text-gray-500 line-through" }, `₹${item.originalPrice.toLocaleString()}`)
-                ),
-                React.createElement('div', { className: "flex items-center gap-2 mt-2" },
-                  React.createElement('button', { onClick: () => updateQuantity(item.id, item.quantity - 1), className: "p-1 rounded bg-gray-200 hover:bg-gray-300" }, React.createElement(Minus)),
-                  React.createElement('span', { className: "px-4" }, item.quantity),
-                  React.createElement('button', { onClick: () => updateQuantity(item.id, Math.min(5, item.quantity + 1)), className: "p-1 rounded bg-gray-200 hover:bg-gray-300" }, React.createElement(Plus)),
-                  React.createElement('button', { onClick: () => removeFromCart(item.id), className: "ml-auto text-red-600 hover:text-red-800" }, "Remove")
-                )
-              )
-            )
-          )
-        ),
-        React.createElement('div', { className: "bg-rose-50 p-6 rounded-lg" },
-          React.createElement('div', { className: "flex justify-between text-lg mb-4" },
-            React.createElement('span', null, "Subtotal:"),
-            React.createElement('span', { className: "font-semibold" }, `₹${getTotalPrice().toLocaleString()}`)
-          ),
-          React.createElement('button', { onClick: handleCheckout, className: "w-full bg-rose-900 text-white py-3 rounded-lg font-semibold hover:bg-rose-800 transition" }, "Proceed to Checkout")
-        )
-      )
-    )
-  );
-
-  const CheckoutPage = () => {
-    const handleSubmit = () => {
-      if (formData.name && formData.address && formData.phone && formData.email) {
-        handleOrderSubmit();
-      } else {
-        alert('Please fill in all fields');
-      }
+    const parseCSV = (csvText) => {
+        const lines = csvText.split('\n').filter(line => line.trim());
+        const headers = lines[0].split(',').map(h => h.trim());
+        return lines.slice(1).map(line => {
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+            for (let char of line) {
+                if (char === '"') inQuotes = !inQuotes;
+                else if (char === ',' && !inQuotes) { values.push(current.trim()); current = ''; }
+                else current += char;
+            }
+            values.push(current.trim());
+            const product = {};
+            headers.forEach((header, index) => {
+                let value = values[index] || '';
+                value = value.replace(/^"|"$/g, '');
+                if (header === 'images' || header === 'tags') product[header] = value ? value.split('|').map(v => v.trim()) : [];
+                else if (header === 'originalPrice' || header === 'discountedPrice') product[header] = parseFloat(value) || 0;
+                else product[header] = value;
+            });
+            return product;
+        });
     };
 
-    if (orderComplete) {
-      return React.createElement('div', { className: "max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" },
-        React.createElement('div', { className: "bg-green-50 p-8 rounded-lg" },
-          React.createElement('h2', { className: "text-3xl font-serif text-green-900 mb-4" }, "Thank You!"),
-          React.createElement('p', { className: "text-gray-700 mb-6" }, "Your order has been successfully placed."),
-          React.createElement('p', { className: "text-sm text-gray-600 mb-8" }, `Order confirmation has been sent to ${formData.email}`),
-          React.createElement('button', {
-            onClick: () => {
-              setCurrentPage('home');
-              setOrderComplete(false);
-              setFormData({ name: '', address: '', phone: '', email: '' });
-            },
-            className: "bg-rose-900 text-white px-8 py-3 rounded-lg hover:bg-rose-800"
-          }, "Continue Shopping")
-        )
-      );
-    }
+    const addToCart = (product, quantity) => {
+        const existing = cart.find(item => item.id === product.id);
+        if (existing) setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item));
+        else setCart([...cart, { ...product, quantity }]);
+    };
 
-    return React.createElement('div', { className: "max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8" },
-      React.createElement('h2', { className: "text-3xl font-serif text-rose-900 mb-8" }, "Checkout"),
-      React.createElement('div', { className: "space-y-6" },
-        React.createElement('div', null,
-          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Full Name"),
-          React.createElement('input', {
-            type: "text",
-            value: formData.name,
-            onChange: (e) => setFormData({ ...formData, name: e.target.value }),
-            className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-900 focus:border-transparent"
-          })
-        ),
-        React.createElement('div', null,
-          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Address"),
-          React.createElement('textarea', {
-            value: formData.address,
-            onChange: (e) => setFormData({ ...formData, address: e.target.value }),
-            rows: "3",
-            className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-900 focus:border-transparent"
-          })
-        ),
-        React.createElement('div', null,
-          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Phone Number"),
-          React.createElement('input', {
-            type: "tel",
-            value: formData.phone,
-            onChange: (e) => setFormData({ ...formData, phone: e.target.value }),
-            className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-900 focus:border-transparent"
-          })
-        ),
-        React.createElement('div', null,
-          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Email"),
-          React.createElement('input', {
-            type: "email",
-            value: formData.email,
-            onChange: (e) => setFormData({ ...formData, email: e.target.value }),
-            className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-900 focus:border-transparent"
-          })
-        ),
-        React.createElement('div', { className: "bg-rose-50 p-6 rounded-lg" },
-          React.createElement('h3', { className: "font-semibold mb-4" }, "Order Summary"),
-          React.createElement('div', { className: "space-y-2 mb-4" },
-            cart.map(item =>
-              React.createElement('div', { key: item.id, className: "flex justify-between text-sm" },
-                React.createElement('span', null, `${item.name} x ${item.quantity}`),
-                React.createElement('span', null, `₹${(item.discountedPrice * item.quantity).toLocaleString()}`)
-              )
-            )
-          ),
-          React.createElement('div', { className: "border-t pt-4 flex justify-between font-semibold text-lg" },
-            React.createElement('span', null, "Total:"),
-            React.createElement('span', null, `₹${getTotalPrice().toLocaleString()}`)
-          )
-        ),
-        React.createElement('button', {
-          onClick: handleSubmit,
-          className: "w-full bg-rose-900 text-white py-3 rounded-lg font-semibold hover:bg-rose-800 transition"
-        }, "Place Order")
-      )
+    const removeFromCart = (productId) => setCart(cart.filter(item => item.id !== productId));
+
+    const updateQuantity = (productId, quantity) => {
+        if (quantity === 0) removeFromCart(productId);
+        else setCart(cart.map(item => item.id === productId ? { ...item, quantity } : item));
+    };
+
+    const clearCart = () => { setCart([]); localStorage.removeItem('cart'); };
+
+    return (
+        <AppContext.Provider value={{ products, cart, currentPage, setCurrentPage, selectedProduct, setSelectedProduct, addToCart, removeFromCart, updateQuantity, clearCart, checkoutStep, setCheckoutStep, loading }}>
+            {children}
+        </AppContext.Provider>
     );
-  };
-
-  const InfoPage = ({ title, content }) => (
-    React.createElement('div', { className: "max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" },
-      React.createElement('h2', { className: "text-3xl font-serif text-rose-900 mb-8" }, title),
-      React.createElement('div', { className: "prose prose-lg" }, content)
-    )
-  );
-
-  return React.createElement('div', { className: "min-h-screen bg-gray-50 flex flex-col" },
-    React.createElement(Header),
-    React.createElement('main', { className: "flex-1" },
-      currentPage === 'home' && React.createElement(HomePage),
-      currentPage === 'product' && selectedProduct && React.createElement(ProductDetailPage),
-      currentPage === 'cart' && React.createElement(CartPage),
-      currentPage === 'checkout' && React.createElement(CheckoutPage),
-      currentPage === 'faq' && React.createElement(InfoPage, { 
-        title: "Frequently Asked Questions",
-        content: React.createElement('div', { className: "space-y-6" },
-          React.createElement('div', null,
-            React.createElement('h3', { className: "font-semibold text-lg mb-2" }, "How do I place an order?"),
-            React.createElement('p', { className: "text-gray-600" }, "Browse our collection, add items to cart, and proceed to checkout to complete your purchase.")
-          ),
-          React.createElement('div', null,
-            React.createElement('h3', { className: "font-semibold text-lg mb-2" }, "What is your return policy?"),
-            React.createElement('p', { className: "text-gray-600" }, "We accept returns within 7 days of delivery. Items must be unused with original tags.")
-          ),
-          React.createElement('div', null,
-            React.createElement('h3', { className: "font-semibold text-lg mb-2" }, "How long does shipping take?"),
-            React.createElement('p', { className: "text-gray-600" }, "Standard shipping takes 5-7 business days. Express shipping is available.")
-          )
-        )
-      }),
-      currentPage === 'about' && React.createElement(InfoPage, { 
-        title: "About Suvarna Sarees",
-        content: React.createElement('p', { className: "text-gray-600 leading-relaxed" }, "Suvarna Sarees is dedicated to preserving and celebrating the timeless elegance of traditional Indian sarees. Our collection features handpicked sarees from master weavers across India, each piece telling a unique story of craftsmanship and heritage.")
-      }),
-      currentPage === 'contact' && React.createElement(InfoPage, { 
-        title: "Contact Us",
-        content: React.createElement('div', { className: "space-y-4 text-gray-600" },
-          React.createElement('p', null, React.createElement('strong', null, "Email:"), " contact@suvarnasarees.com"),
-          React.createElement('p', null, React.createElement('strong', null, "Phone:"), " +91 98765 43210"),
-          React.createElement('p', null, React.createElement('strong', null, "Address:"), " 123 Silk Street, Mumbai, Maharashtra 400001"),
-          React.createElement('p', null, React.createElement('strong', null, "Business Hours:"), " Monday - Saturday, 10:00 AM - 7:00 PM")
-        )
-      }),
-      currentPage === 'policy' && React.createElement(InfoPage, { 
-        title: "Privacy & Return Policy",
-        content: React.createElement('div', { className: "space-y-6 text-gray-600" },
-          React.createElement('div', null,
-            React.createElement('h3', { className: "font-semibold text-lg text-gray-900 mb-2" }, "Privacy Policy"),
-            React.createElement('p', null, "We respect your privacy and are committed to protecting your personal information. All data collected is used solely for order processing and customer service.")
-          ),
-          React.createElement('div', null,
-            React.createElement('h3', { className: "font-semibold text-lg text-gray-900 mb-2" }, "Return Policy"),
-            React.createElement('p', null, "Items can be returned within 7 days of delivery in original condition with tags attached. Refunds will be processed within 7-10 business days.")
-          ),
-          React.createElement('div', null,
-            React.createElement('h3', { className: "font-semibold text-lg text-gray-900 mb-2" }, "Shipping Policy"),
-            React.createElement('p', null, "We offer standard and express shipping options. Shipping charges vary based on location and order value.")
-          )
-        )
-      })
-    ),
-    React.createElement(Footer)
-  );
 };
 
+const Header = () => {
+    const { cart, setCurrentPage } = useAppContext();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+    return (
+        <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                    <button onClick={() => setCurrentPage('home')} className="text-2xl font-serif text-gray-900 tracking-wide hover:text-amber-700 transition">SĀRĪ LUXE</button>
+                    <nav className="hidden md:flex space-x-8">
+                        <button onClick={() => setCurrentPage('home')} className="text-gray-700 hover:text-amber-700 transition font-medium">Collection</button>
+                        <button onClick={() => setCurrentPage('home')} className="text-gray-700 hover:text-amber-700 transition font-medium">About</button>
+                        <button onClick={() => setCurrentPage('home')} className="text-gray-700 hover:text-amber-700 transition font-medium">Contact</button>
+                    </nav>
+                    <div className="flex items-center space-x-4">
+                        <button onClick={() => setCurrentPage('cart')} className="relative p-2 text-gray-700 hover:text-amber-700 transition">
+                            <ShoppingCart size={24} />
+                            {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-amber-700 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{cartCount}</span>}
+                        </button>
+                        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 text-gray-700">{mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
+                    </div>
+                </div>
+            </div>
+            {mobileMenuOpen && (
+                <div className="md:hidden border-t border-gray-200 bg-white">
+                    <div className="px-4 py-3 space-y-3">
+                        <button onClick={() => { setCurrentPage('home'); setMobileMenuOpen(false); }} className="block w-full text-left text-gray-700 hover:text-amber-700">Collection</button>
+                        <button onClick={() => { setCurrentPage('home'); setMobileMenuOpen(false); }} className="block w-full text-left text-gray-700 hover:text-amber-700">About</button>
+                        <button onClick={() => { setCurrentPage('home'); setMobileMenuOpen(false); }} className="block w-full text-left text-gray-700 hover:text-amber-700">Contact</button>
+                    </div>
+                </div>
+            )}
+        </header>
+    );
+};
+
+const ProductCard = ({ product, onClick }) => {
+    const discount = product.originalPrice > 0 ? Math.round(((product.originalPrice - product.discountedPrice) / product.originalPrice) * 100) : 0;
+    return (
+        <div onClick={onClick} className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition group">
+            <div className="aspect-square bg-gray-100 overflow-hidden">
+                <img src={product.images[0] || 'https://via.placeholder.com/400'} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+            </div>
+            <div className="p-4">
+                <p className="text-xs text-amber-700 font-medium uppercase tracking-wide mb-1">{product.sub_category}</p>
+                <h3 className="text-lg font-serif text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
+                <div className="flex items-center space-x-2">
+                    <span className="text-xl font-bold text-gray-900">₹{product.discountedPrice.toLocaleString()}</span>
+                    {discount > 0 && (
+                        <>
+                            <span className="text-sm text-gray-500 line-through">₹{product.originalPrice.toLocaleString()}</span>
+                            <span className="text-xs text-green-600 font-semibold">{discount}% OFF</span>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const HomePage = () => {
+    const { products, setCurrentPage, setSelectedProduct, loading } = useAppContext();
+    const [page, setPage] = useState(1);
+    const itemsPerPage = 12;
+    const totalPages = Math.ceil(products.length / itemsPerPage);
+    const startIndex = (page - 1) * itemsPerPage;
+    const currentProducts = products.slice(startIndex, startIndex + itemsPerPage);
+    if (loading) return (<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-amber-700 mx-auto mb-4"></div><h2 className="text-2xl font-serif text-gray-900">Loading Collection...</h2></div></div>);
+    if (products.length === 0) return (<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-center"><h2 className="text-2xl font-serif text-gray-900 mb-4">No Products Available</h2><p className="text-gray-600">Please check back soon for our latest collection</p></div></div>);
+    return (
+        <div className="min-h-screen bg-gray-50 py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-serif text-gray-900 mb-4">Exquisite Saree Collection</h1>
+                    <p className="text-gray-600 max-w-2xl mx-auto">Discover timeless elegance with our curated selection of luxury sarees</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {currentProducts.map(product => (<ProductCard key={product.id} product={product} onClick={() => { setSelectedProduct(product); setCurrentPage('detail'); }} />))}
+                </div>
+                {totalPages > 1 && (
+                    <div className="flex justify-center items-center space-x-4 mt-12">
+                        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition"><ChevronLeft size={20} /></button>
+                        <div className="flex items-center space-x-2">
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum = totalPages <= 5 ? i + 1 : page <= 3 ? i + 1 : page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i;
+                                return (<button key={pageNum} onClick={() => setPage(pageNum)} className={`w-10 h-10 rounded-lg font-medium transition ${page === pageNum ? 'bg-amber-700 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'}`}>{pageNum}</button>);
+                            })}
+                        </div>
+                        <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition"><ChevronRight size={20} /></button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+const ProductDetailPage = () => {
+    const { selectedProduct, products, addToCart, setSelectedProduct, setCurrentPage, cart } = useAppContext();
+    const [quantity, setQuantity] = useState(1);
+    const [selectedImage, setSelectedImage] = useState(0);
+    if (!selectedProduct) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Product not found</div>;
+    const isInCart = cart.some(item => item.id === selectedProduct.id);
+    const recommendations = products.filter(p => p.id !== selectedProduct.id).sort(() => 0.5 - Math.random()).slice(0, 12);
+    return (
+        <div className="min-h-screen bg-gray-50 py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+                    <div className="space-y-4">
+                        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                            <img src={selectedProduct.images[selectedImage] || 'https://via.placeholder.com/600'} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                            {selectedProduct.images.map((img, idx) => (
+                                <button key={idx} onClick={() => setSelectedImage(idx)} className={`aspect-square rounded-lg overflow-hidden border-2 transition ${selectedImage === idx ? 'border-amber-700' : 'border-gray-200'}`}>
+                                    <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="space-y-6">
+                        <div>
+                            <p className="text-sm text-amber-700 font-medium uppercase tracking-wide mb-2">{selectedProduct.category} • {selectedProduct.sub_category}</p>
+                            <h1 className="text-4xl font-serif text-gray-900 mb-4">{selectedProduct.name}</h1>
+                            <div className="flex items-center space-x-3 mb-6">
+                                <span className="text-3xl font-bold text-gray-900">₹{selectedProduct.discountedPrice.toLocaleString()}</span>
+                                {selectedProduct.originalPrice > selectedProduct.discountedPrice && (
+                                    <>
+                                        <span className="text-xl text-gray-500 line-through">₹{selectedProduct.originalPrice.toLocaleString()}</span>
+                                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">{Math.round(((selectedProduct.originalPrice - selectedProduct.discountedPrice) / selectedProduct.originalPrice) * 100)}% OFF</span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        <div className="border-t border-gray-200 pt-6"><p className="text-gray-700 leading-relaxed">{selectedProduct.description}</p></div>
+                        {selectedProduct.tags.length > 0 && (
+                            <div className="border-t border-gray-200 pt-6">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-3">TAGS</h3>
+                                <div className="flex flex-wrap gap-2">{selectedProduct.tags.map((tag, idx) => (<span key={idx} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">{tag}</span>))}</div>
+                            </div>
+                        )}
+                        <div className="border-t border-gray-200 pt-6">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3">QUANTITY</h3>
+                            <div className="flex items-center space-x-4">
+                                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition"><Minus size={16} /></button>
+                                <span className="text-xl font-semibold w-12 text-center">{quantity}</span>
+                                <button onClick={() => setQuantity(Math.min(5, quantity + 1))} className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition"><Plus size={16} /></button>
+                            </div>
+                        </div>
+                        <button onClick={isInCart ? () => setCurrentPage('cart') : () => addToCart(selectedProduct, quantity)} className="w-full bg-amber-700 text-white py-4 rounded-lg font-semibold hover:bg-amber-800 transition flex items-center justify-center space-x-2">
+                            <ShoppingCart size={20} /><span>{isInCart ? 'Proceed to Cart' : 'Add to Cart'}</span>
+                        </button>
+                    </div>
+                </div>
+                <div className="border-t border-gray-200 pt-16">
+                    <h2 className="text-3xl font-serif text-gray-900 mb-8 text-center">You Might Also Like</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {recommendations.map(product => (<ProductCard key={product.id} product={product} onClick={() => { setSelectedProduct(product); setSelectedImage(0); setQuantity(1); window.scrollTo(0, 0); }} />))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const CartPage = () => {
+    const { cart, updateQuantity, removeFromCart, setCurrentPage } = useAppContext();
+    const total = cart.reduce((sum, item) => sum + (item.discountedPrice * item.quantity), 0);
+    if (cart.length === 0) return (<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-center"><h2 className="text-2xl font-serif text-gray-900 mb-4">Your Cart is Empty</h2><button onClick={() => setCurrentPage('home')} className="bg-amber-700 text-white px-6 py-3 rounded-lg hover:bg-amber-800 transition">Continue Shopping</button></div></div>);
+    return (
+        <div className="min-h-screen bg-gray-50 py-12">
+            <div className="max-w-4xl mx-auto px-4">
+                <h1 className="text-3xl font-serif text-gray-900 mb-8">Shopping Cart</h1>
+                <div className="bg-white rounded-lg shadow-md divide-y">
+                    {cart.map(item => (
+                        <div key={item.id} className="p-6 flex items-center space-x-4">
+                            <img src={item.images[0]} alt={item.name} className="w-24 h-24 object-cover rounded-lg" />
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-gray-900">{item.name}</h3>
+                                <p className="text-sm text-gray-600">{item.sub_category}</p>
+                                <p className="text-lg font-bold text-gray-900 mt-1">₹{item.discountedPrice.toLocaleString()}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 border rounded hover:bg-gray-100"><Minus size={16} /></button>
+                                <span className="w-8 text-center">{item.quantity}</span>
+                                <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1 border rounded hover:bg-gray-100"><Plus size={16} /></button>
+                            </div>
+                            <button onClick={() => removeFromCart(item.id)} className="text-red-600 hover:text-red-800"><X size={20} /></button>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-6 bg-white rounded-lg shadow-md p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-xl font-semibold">Total:</span>
+                        <span className="text-2xl font-bold text-amber-700">₹{total.toLocaleString()}</span>
+                    </div>
+                    <button onClick={() => setCurrentPage('checkout')} className="w-full bg-amber-700 text-white py-3 rounded-lg font-semibold hover:bg-amber-800 transition">Proceed to Checkout</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+const CheckoutPage = () => {
+    const { cart, clearCart, setCurrentPage, checkoutStep, setCheckoutStep } = useAppContext();
+    const [formData, setFormData] = useState({ email: '', phone: '', name: '', street1: '', street2: '', pincode: '', country: 'India' });
+    const [orderId] = useState(`ORD-${Date.now()}`);
+    const total = cart.reduce((sum, item) => sum + (item.discountedPrice * item.quantity), 0);
+    if (checkoutStep === 4) return (<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-center bg-white p-12 rounded-lg shadow-lg max-w-md"><div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={32} className="text-green-600" /></div><h2 className="text-3xl font-serif text-gray-900 mb-4">Thank You!</h2><p className="text-gray-600 mb-2">Your order has been placed successfully</p><p className="text-lg font-semibold text-amber-700 mb-8">Order ID: {orderId}</p><button onClick={() => { setCurrentPage('home'); setCheckoutStep(1); }} className="bg-amber-700 text-white px-8 py-3 rounded-lg hover:bg-amber-800 transition">Continue Shopping</button></div></div>);
+    return (
+        <div className="min-h-screen bg-gray-50 py-12">
+            <div className="max-w-3xl mx-auto px-4">
+                <h1 className="text-3xl font-serif text-gray-900 mb-8">Checkout</h1>
+                <div className="flex items-center justify-center mb-8">
+                    {[1, 2, 3].map(step => (<React.Fragment key={step}><div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${checkoutStep >= step ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-600'}`}>{step}</div>{step < 3 && <div className={`w-16 h-1 ${checkoutStep > step ? 'bg-amber-700' : 'bg-gray-200'}`} />}</React.Fragment>))}
+                </div>
+                <div className="bg-white rounded-lg shadow-md p-8">
+                    {checkoutStep === 1 && (<div className="space-y-6"><h2 className="text-xl font-semibold mb-4">Contact Information</h2><div><label className="block text-sm font-medium text-gray-700 mb-2">Email</label><input type="email" name="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-700 focus:border-transparent" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Phone</label><input type="tel" name="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-700 focus:border-transparent" required /></div><button onClick={() => setCheckoutStep(2)} disabled={!formData.email || !formData.phone} className="w-full bg-amber-700 text-white py-3 rounded-lg font-semibold hover:bg-amber-800 transition disabled:opacity-50 disabled:cursor-not-allowed">Continue to Shipping</button></div>)}
+                    {checkoutStep === 2 && (<div className="space-y-6"><h2 className="text-xl font-semibold mb-4">Shipping Address</h2><div><label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label><input type="text" name="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-700 focus:border-transparent" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Street Address 1</label><input type="text" name="street1" value={formData.street1} onChange={(e) => setFormData({ ...formData, street1: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-700 focus:border-transparent" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Street Address 2</label><input type="text" name="street2" value={formData.street2} onChange={(e) => setFormData({ ...formData, street2: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-700 focus:border-transparent" /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-700 mb-2">Pincode</label><input type="text" name="pincode" value={formData.pincode} onChange={(e) => setFormData({ ...formData, pincode: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-700 focus:border-transparent" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Country</label><input type="text" name="country" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-amber-700 focus:border-transparent" required /></div></div><div className="flex space-x-4"><button onClick={() => setCheckoutStep(1)} className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">Back</button><button onClick={() => setCheckoutStep(3)} disabled={!formData.name || !formData.street1 || !formData.pincode} className="flex-1 bg-amber-700 text-white py-3 rounded-lg font-semibold hover:bg-amber-800 transition disabled:opacity-50 disabled:cursor-not-allowed">Review Order</button></div></div>)}
+                    {checkoutStep === 3 && (<div className="space-y-6"><h2 className="text-xl font-semibold mb-4">Order Review</h2><div className="bg-gray-50 rounded-lg p-4 space-y-3"><h3 className="font-semibold text-gray-900">Contact Information</h3><p className="text-sm text-gray-600">Email: {formData.email}</p><p className="text-sm text-gray-600">Phone: {formData.phone}</p></div><div className="bg-gray-50 rounded-lg p-4 space-y-3"><h3 className="font-semibold text-gray-900">Shipping Address</h3><p className="text-sm text-gray-600">{formData.name}</p><p className="text-sm text-gray-600">{formData.street1}</p>{formData.street2 && <p className="text-sm text-gray-600">{formData.street2}</p>}<p className="text-sm text-gray-600"
+{formData.pincode}, {formData.country}</p></div><div className="bg-gray-50 rounded-lg p-4 space-y-3"><h3 className="font-semibold text-gray-900 mb-3">Order Items</h3>{cart.map(item => (<div key={item.id} className="flex justify-between text-sm"><span className="text-gray-600">{item.name} x {item.quantity}</span><span className="font-semibold">₹{(item.discountedPrice * item.quantity).toLocaleString()}</span></div>))}<div className="border-t pt-3 flex justify-between font-bold text-lg"><span>Total:</span><span className="text-amber-700">₹{total.toLocaleString()}</span></div></div><div className="flex space-x-4"><button onClick={() => setCheckoutStep(2)} className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">Back</button><button onClick={() => { clearCart(); setCheckoutStep(4); }} className="flex-1 bg-amber-700 text-white py-3 rounded-lg font-semibold hover:bg-amber-800 transition">Place Order</button></div></div>)}
+</div>
+</div>
+</div>
+);
+};
+
+const Footer = () => {
+const { setCurrentPage } = useAppContext();
+const currentYear = new Date().getFullYear();
+return (
+<footer className="bg-gray-900 text-gray-300 mt-16">
+<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+<div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+<div className="col-span-1 md:col-span-2">
+<h3 className="text-2xl font-serif text-white mb-4">SĀRĪ LUXE</h3>
+<p className="text-gray-400 mb-4">Discover timeless elegance with our curated collection of luxury sarees. Each piece is carefully selected to bring you the finest in traditional craftsmanship.</p>
+<div className="flex space-x-4">
+<a href="#" className="text-gray-400 hover:text-white transition"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
+<a href="#" className="text-gray-400 hover:text-white transition"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg></a>
+<a href="#" className="text-gray-400 hover:text-white transition"><svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z"/></svg></a>
+</div>
+</div>
+<div>
+<h4 className="text-white font-semibold mb-4">Quick Links</h4>
+<ul className="space-y-2">
+<li><button onClick={() => setCurrentPage('home')} className="hover:text-white transition">Collection</button></li>
+<li><a href="#" className="hover:text-white transition">About Us</a></li>
+<li><button onClick={() => setCurrentPage('cart')} className="hover:text-white transition">Shopping Cart</button></li>
+<li><a href="#" className="hover:text-white transition">Contact</a></li>
+</ul>
+</div>
+<div>
+<h4 className="text-white font-semibold mb-4">Customer Service</h4>
+<ul className="space-y-2">
+<li><a href="#" className="hover:text-white transition">Contact Us</a></li>
+<li><a href="#" className="hover:text-white transition">Shipping Policy</a></li>
+<li><a href="#" className="hover:text-white transition">Returns & Exchanges</a></li>
+<li><a href="#" className="hover:text-white transition">FAQs</a></li>
+</ul>
+</div>
+</div>
+<div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
+<p className="text-gray-400 text-sm">© {currentYear} SĀRĪ LUXE. All rights reserved.</p>
+<div className="flex space-x-6 mt-4 md:mt-0">
+<a href="#" className="text-gray-400 hover:text-white text-sm transition">Privacy Policy</a>
+<a href="#" className="text-gray-400 hover:text-white text-sm transition">Terms of Service</a>
+<a href="#" className="text-gray-400 hover:text-white text-sm transition">Cookie Policy</a>
+</div>
+</div>
+</div>
+</footer>
+);
+};
+const App = () => {
+const { currentPage } = useAppContext();
+return (<div className="min-h-screen bg-gray-50 flex flex-col"><Header /><main className="flex-grow">{currentPage === 'home' && <HomePage />}{currentPage === 'detail' && <ProductDetailPage />}{currentPage === 'cart' && <CartPage />}{currentPage === 'checkout' && <CheckoutPage />}</main><Footer /></div>);
+};
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(React.createElement(SariEcommerce));
+root.render(<React.StrictMode><AppProvider><App /></AppProvider></React.StrictMode>);
